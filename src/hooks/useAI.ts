@@ -13,6 +13,7 @@ export const useAI = () => {
       const { data: { session } } = await supabase.auth.getSession();
       const userId = session?.user?.id;
 
+      console.info('Neural Sync Core v3.0.1 [Active]');
       console.log(`Invoking AI Function: ${type}...`);
       const { data: result, error } = await supabase.functions.invoke('ai-chat', {
         body: { type, data, userId },

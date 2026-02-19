@@ -59,9 +59,12 @@ const Login = () => {
         if (signInError) {
           console.warn('Initial admin entry blocked, attempting auto-synchronization...');
 
-          // 2. Auto-Provision if missing
-          if (signInError.message.toLowerCase().includes('invalid login credentials')) {
-            toast.info('Initial Jury Admin sync in progress...');
+          // 2. Auto-Provision if missing OR already registered but failing
+          const isInvalidCredentials = signInError.message.toLowerCase().includes('invalid login credentials');
+          const isUnconfirmed = signInError.message.toLowerCase().includes('email not confirmed');
+
+          if (isInvalidCredentials || isUnconfirmed) {
+            toast.info('Synchronizing Jury Admin identity...');
 
             const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
               email: adminEmail,
@@ -75,34 +78,35 @@ const Login = () => {
               }
             });
 
+            // If already registered, don't error, just try one last sign-in
             if (signUpError) {
-              // If user already exists in auth but we couldn't sign in, it might be unconfirmed
-              if (signUpError.message.toLowerCase().includes('already registered')) {
-                throw new Error('Admin ID exists but is locked. If "Confirm Email" is ON in Supabase, please check your inbox to confirm admin@mind-sync.com.');
+              console.log('SignUp Error:', signUpError.message);
+              // Try sign in one more time regardless of the error
+              const { error: lastTryError } = await supabase.auth.signInWithPassword({
+                email: adminEmail,
+                password: adminPass,
+              });
+              if (!lastTryError) {
+                toast.success('Admin Identity Recovered & Synced!');
+                return;
               }
-              throw signUpError;
+              throw new Error(`Sync Blocked: ${lastTryError.message}. TIP: Disable "Confirm Email" in Supabase Auth settings.`);
             }
 
             if (signUpData.session) {
               toast.success('Jury Admin Access Activated!');
               return;
             } else {
-              // Registration worked but no session (auto-confirm is off)
-              // Immediately retry sign-in
-              const { error: retryError } = await supabase.auth.signInWithPassword({
+              // Sign-up worked but maybe needs immediate sign-in for session
+              const { error: finalTryError } = await supabase.auth.signInWithPassword({
                 email: adminEmail,
                 password: adminPass,
               });
-
-              if (!retryError) {
+              if (!finalTryError) {
                 toast.success('Admin Entry Synchronized!');
                 return;
               }
-
-              if (retryError.message.toLowerCase().includes('email not confirmed')) {
-                throw new Error('Admin system pending. Please go to Supabase Dashboard > Auth > Providers > Email and TURN OFF "Confirm email" for the presentation.');
-              }
-              throw retryError;
+              throw finalTryError;
             }
           }
           throw signInError;
@@ -115,18 +119,12 @@ const Login = () => {
       // --- STANDARD AUTH RELAY ---
       let finalEmail = emailOrUsername;
 
-      if (!isSignUp && !emailOrUsername.includes('@')) {
-        const { data, error: lookupError } = await (supabase.rpc as any)('get_email_by_username', {
-          username_input: emailOrUsername
-        });
-
-        if (lookupError || !data) {
-          throw new Error('Identity not recognized. Ensure you have registered this username.');
-        }
-        finalEmail = data as string;
-      }
-
       if (isSignUp) {
+        // Strict Email Validation for Registration
+        if (!emailOrUsername.includes('@') || !emailOrUsername.includes('.')) {
+          throw new Error('Jury Note: Registration requires a valid institutional email format (e.g., user@example.com).');
+        }
+
         const { data, error } = await supabase.auth.signUp({
           email: emailOrUsername,
           password,
@@ -142,16 +140,28 @@ const Login = () => {
         if (data.session) {
           toast.success('Welcome! Neural Sync Established.');
         } else {
-          toast.info('Verify your identity via the link sent to your email to complete synchronization.');
+          toast.info('Synchronization initiated. Check your inbox to confirm identity.');
         }
       } else {
+        // Login Logic (Email OR Username)
+        if (!emailOrUsername.includes('@')) {
+          const { data, error: lookupError } = await (supabase.rpc as any)('get_email_by_username', {
+            username_input: emailOrUsername
+          });
+
+          if (lookupError || !data) {
+            throw new Error('Identity not recognized. Enter your registered Username or Email.');
+          }
+          finalEmail = data as string;
+        }
+
         const { error } = await supabase.auth.signInWithPassword({
           email: finalEmail,
           password,
         });
         if (error) {
           if (error.message.toLowerCase().includes('email not confirmed')) {
-            throw new Error('Identity not confirmed. Please check your email inbox.');
+            throw new Error('Identity not confirmed. Check your email to unblock access.');
           }
           throw error;
         }
