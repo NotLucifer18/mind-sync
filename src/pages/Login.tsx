@@ -29,8 +29,7 @@ const Login = () => {
     if (selectedRole === 'admin') {
       setEmailOrUsername('lucifer');
     } else {
-      // Don't clear it if we just swapped to/from signup in the same role
-      // but if we change role, reset
+      setEmailOrUsername('');
     }
   }, [selectedRole]);
 
@@ -47,7 +46,7 @@ const Login = () => {
           throw new Error('Security Breach: Administrative credentials rejected.');
         }
 
-        // Attempt to find the real email for 'lucifer' but fallback to demo email
+        // Attempt to find the real email for 'lucifer' or use demo default
         let targetEmail = 'admin@mind-sync.com';
         try {
           const { data } = await (supabase.rpc as any)('get_email_by_username', {
@@ -64,7 +63,10 @@ const Login = () => {
         });
 
         if (error) {
-          // If fallback also fails, report system error without leaking passwords
+          // If the account doesn't exist, this is likely why the bypass is failing
+          if (error.message.includes("Invalid login credentials")) {
+            throw new Error("Admin account 'admin@mind-sync.com' not found. Please register it once with password 'notlucifer18'.");
+          }
           throw new Error(`Admin Authorization Failed: ${error.message}`);
         }
 
@@ -313,39 +315,22 @@ const Login = () => {
                 </div>
               </button>
 
-              <div className="flex flex-col gap-4 mt-8">
-                {selectedRole !== 'admin' && !isSignUp && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!emailOrUsername) return toast.error('Enter email first');
-                      setLoading(true);
-                      const { error } = await supabase.auth.resend({ type: 'signup', email: emailOrUsername });
-                      setLoading(false);
-                      if (error) toast.error(error.message);
-                      else toast.success('Verification link re-dispatched!');
-                    }}
-                    className="text-[10px] text-slate-600 font-black tracking-widest hover:text-white transition-colors uppercase"
-                  >
-                    Resend Authorization Email
-                  </button>
-                )}
-              </div>
+              <div className="flex flex-col gap-4 mt-8" />
             </form>
 
-            {selectedRole !== 'admin' && (
-              <div className="mt-10 pt-6 border-t border-white/5 text-center">
-                <p className="text-sm text-slate-500">
-                  {isSignUp ? "Known identity?" : "New sync candidate?"}
+            <div className="mt-10 pt-6 border-t border-white/5 text-center">
+              <p className="text-sm text-slate-500">
+                {isSignUp || selectedRole === 'admin' ? (selectedRole === 'admin' ? "Restricted Access Only" : "Known identity?") : "New sync candidate?"}
+                {selectedRole !== 'admin' && (
                   <button
                     onClick={() => setIsSignUp(!isSignUp)}
                     className="ml-2 text-white font-black hover:text-cyan-400 transition-colors"
                   >
                     {isSignUp ? 'SIGN IN' : 'REGISTER'}
                   </button>
-                </p>
-              </div>
-            )}
+                )}
+              </p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
