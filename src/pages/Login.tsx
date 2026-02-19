@@ -41,11 +41,20 @@ const Login = () => {
     try {
       if (selectedRole === 'admin') {
         if (emailOrUsername.toLowerCase() !== 'lucifer' || password !== 'notlucifer18') {
-          throw new Error('Administrative credentials rejected (lucifer/notlucifer18)');
+          throw new Error('Administrative credentials rejected (Access Restricted)');
         }
-        // Force login as the admin account
+
+        // Find the email for 'lucifer'
+        const { data: adminEmail, error: lookupError } = await (supabase.rpc as any)('get_email_by_username', {
+          username_input: 'lucifer'
+        });
+
+        if (lookupError || !adminEmail) {
+          throw new Error('Admin identity "lucifer" not found in system.');
+        }
+
         const { error } = await supabase.auth.signInWithPassword({
-          email: 'admin@mind-sync.com',
+          email: adminEmail as string,
           password: 'notlucifer18',
         });
         if (error) throw error;
