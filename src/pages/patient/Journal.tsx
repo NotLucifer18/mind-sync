@@ -26,7 +26,7 @@ const Journal = () => {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const recorder = new MediaRecorder(stream);
         audioChunks.current = [];
-        
+
         recorder.ondataavailable = (e) => {
           if (e.data.size > 0) audioChunks.current.push(e.data);
         };
@@ -52,21 +52,30 @@ const Journal = () => {
   const handleSubmit = async () => {
     if (!text.trim()) return;
     const entryText = text;
-    addJournalEntry(entryText, false);
     setText('');
-    toast.success('Journal saved! ✨');
 
-    const currentLength = journalEntries.length;
-    const aiReply = await ask('journal', { text: entryText });
-    if (aiReply) {
-      setAiResponses(prev => ({ ...prev, [currentLength.toString()]: aiReply }));
-    }
+    // Call AI FIRST to get sentiment for research/paper quality
+    const aiResult = await ask('journal', { text: entryText });
+    const sentiment = aiResult?.sentiment || 0.5;
+    const aiReflection = aiResult?.content || "Thank you for sharing.";
+
+    // Save to database with sentiment
+    addJournalEntry(entryText, false, sentiment);
+
+    setAiResponses(prev => ({
+      ...prev,
+      [journalEntries.length.toString()]: aiReflection
+    }));
+
+    toast.success('Journal saved! ✨', {
+      description: `Sentiment Analysis: ${Math.round(sentiment * 100)}% Wellness`
+    });
   };
 
   return (
     <div className="min-h-screen pb-24 px-5 pt-6 bg-background relative overflow-hidden">
       <div className="absolute top-[-10%] left-[-15%] w-48 h-48 rounded-full bg-primary/5 blur-3xl pointer-events-none" />
-      
+
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 mb-6">
         <BookOpen className="w-6 h-6 text-primary" />
         <h1 className="text-xl font-black text-foreground">Journal</h1>
@@ -78,11 +87,10 @@ const Journal = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
         onClick={handleRecord}
-        className={`w-full py-6 rounded-2xl flex flex-col items-center gap-2 mb-4 transition-all duration-300 border ${
-          isRecording
+        className={`w-full py-6 rounded-2xl flex flex-col items-center gap-2 mb-4 transition-all duration-300 border ${isRecording
             ? 'bg-destructive/10 border-destructive text-destructive shadow-sos'
             : 'glass-card border-border text-muted-foreground hover:border-primary/40 hover:shadow-soft'
-        }`}
+          }`}
       >
         {isRecording ? <MicOff className="w-10 h-10" /> : <Mic className="w-10 h-10" />}
         <span className="font-bold text-sm">
@@ -138,7 +146,7 @@ const Journal = () => {
       {/* Entries */}
       <div className="space-y-3">
         {journalEntries.map((entry, idx) => (
-          <motion.div 
+          <motion.div
             key={entry.id}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}

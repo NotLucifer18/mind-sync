@@ -3,13 +3,14 @@ import { useAuth } from './AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-export type UserRole = 'patient' | 'caretaker' | 'doctor' | null;
+export type UserRole = 'patient' | 'caretaker' | 'doctor' | 'admin' | null;
 
 export interface JournalEntry {
   id: string;
   text: string;
   date: string;
   isVoice: boolean;
+  sentiment?: number;
 }
 
 export interface MoodEntry {
@@ -27,7 +28,7 @@ interface AppState {
   setCurrentMood: (mood: number) => void;
   streak: number;
   journalEntries: JournalEntry[];
-  addJournalEntry: (text: string, isVoice: boolean) => void;
+  addJournalEntry: (text: string, isVoice: boolean, sentiment?: number) => void;
   moodHistory: MoodEntry[];
   // Caretaker
   weather: 'sunny' | 'cloudy' | 'stormy';
@@ -39,6 +40,14 @@ interface AppState {
   // Caretaker / Patient Approval
   pendingRequests: { id: string; doctorName: string }[];
   approveRequest: (requestId: string) => void;
+  rejectRequest: (requestId: string) => void;
+
+  // New features
+  pairingCode: string | null;
+  linkChild: (code: string) => Promise<void>;
+  requestPatientAccess: (identifier: string) => Promise<void>;
+  // Admin
+  aiLogs: any[];
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -64,6 +73,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [moodHistory, setMoodHistory] = useState<MoodEntry[]>(initialMoodHistory);
   const [weather, setWeather] = useState<'sunny' | 'cloudy' | 'stormy'>('cloudy');
   const [stressAdvice, setStressAdvice] = useState('Status: Moderate Stress. Advice: Offer a calming activity together.');
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [aiLogs, setAiLogs] = useState<any[]>([]);
 
   // Fetch Data on Load
   useEffect(() => {
@@ -71,6 +82,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     const fetchData = async () => {
       try {
+        // Fetch Profile for Role & Pairing Code
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profileError || !profileData) throw profileError || new Error('Profile not found');
+        const profile = profileData as { role: string; pairing_code: string };
+        setRole(profile.role as UserRole);
+        setPairingCode(profile.pairing_code);
+
         // Fetch Moods
         const { data, error: moodError } = await supabase
           .from('mood_logs')
@@ -117,6 +140,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           })));
         }
 
+        if (profile.role === 'admin') {
+          const { data: logs, error: logsError } = await supabase
+            .from('ai_logs')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(100);
+          if (!logsError && logs) setAiLogs(logs);
+        }
+
       } catch (error) {
         console.error('Error fetching data:', error);
         // Don't show toast error here to avoid annoying user if tables don't exist yet
@@ -158,13 +190,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [session]);
 
-  const addJournalEntry = useCallback(async (text: string, isVoice: boolean) => {
+  const addJournalEntry = useCallback(async (text: string, isVoice: boolean, sentiment?: number) => {
     // Optimistic Update
     const newEntry: JournalEntry = {
       id: Date.now().toString(),
       text,
       date: new Date().toLocaleDateString(),
       isVoice,
+      sentiment
     };
     setJournalEntries(prev => [newEntry, ...prev]);
 
@@ -182,7 +215,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         user_id: session.user.id,
         content: text,
         is_voice: isVoice,
-        sentiment_score: 0 // Placeholder
+        sentiment_score: sentiment || 0.5
       });
 
       if (error) throw error;
@@ -298,13 +331,101 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const rejectRequest = async (requestId: string) => {
+    try {
+      const { error } = await (supabase as any)
+        .from('patient_access')
+        .update({ status: 'rejected' })
+        .eq('id', requestId);
+
+      if (error) throw error;
+
+      setPendingRequests(prev => prev.filter(r => r.id !== requestId));
+      toast.success('Request declined');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to decline');
+    }
+  };
+
+  const linkChild = async (code: string) => {
+    if (!session?.user) return;
+    try {
+      // 1. Find child by code
+      const { data: child, error: findError } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .eq('pairing_code', code.toUpperCase())
+        .single();
+
+      if (findError || !child) throw new Error('Invalid pairing code');
+
+      const childProfile = child as any;
+
+      // 2. Link with auto-approval (since they have the code)
+      const { error: linkError } = await (supabase as any)
+        .from('patient_access')
+        .insert({
+          patient_id: childProfile.id,
+          provider_id: session.user.id,
+          status: 'approved'
+        });
+
+      if (linkError) {
+        if (linkError.code === '23505') throw new Error('Child already linked');
+        throw linkError;
+      }
+
+      toast.success(`Successfully linked to ${childProfile.full_name}!`);
+      // Trigger a refresh or local state update if needed
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const requestPatientAccess = async (identifier: string) => {
+    if (!session?.user) return;
+    try {
+      // Find patient by code or email
+      const query = identifier.includes('@')
+        ? supabase.from('profiles').select('id, full_name').eq('email', identifier)
+        : supabase.from('profiles').select('id, full_name').eq('pairing_code', identifier.toUpperCase());
+
+      const { data: patient, error: findError } = await query.single();
+
+      if (findError || !patient) throw new Error('Patient not found');
+
+      const targetPatient = patient as any;
+
+      // Create pending request
+      const { error: reqError } = await (supabase as any)
+        .from('patient_access')
+        .insert({
+          patient_id: targetPatient.id,
+          provider_id: session.user.id,
+          status: 'pending'
+        });
+
+      if (reqError) {
+        if (reqError.code === '23505') throw new Error('Request already exists');
+        throw reqError;
+      }
+
+      toast.success(`Relay request sent to ${targetPatient.full_name}!`);
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       role, setRole, logout,
       currentMood, setCurrentMood, streak,
       journalEntries, addJournalEntry, moodHistory,
       weather, stressAdvice,
-      patients, pendingRequests, approveRequest
+      patients, pendingRequests, approveRequest, rejectRequest,
+      pairingCode, linkChild, requestPatientAccess,
+      aiLogs
     }}>
       {children}
     </AppContext.Provider>

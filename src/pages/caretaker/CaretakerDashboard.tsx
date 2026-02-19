@@ -1,6 +1,9 @@
 import { useApp } from '@/context/AppContext';
-import { Cloud, Sun, CloudLightning, Heart } from 'lucide-react';
+import { Cloud, Sun, CloudLightning, Heart, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 const weatherConfig = {
   sunny: {
@@ -33,7 +36,8 @@ const weatherConfig = {
 };
 
 const CaretakerDashboard = () => {
-  const { weather, currentMood, pendingRequests, approveRequest } = useApp();
+  const { weather, currentMood, pendingRequests, approveRequest, rejectRequest, linkChild } = useApp();
+  const [pairingCodeInput, setPairingCodeInput] = useState('');
   const config = weatherConfig[weather];
   const WeatherIcon = config.icon;
 
@@ -53,6 +57,41 @@ const CaretakerDashboard = () => {
         </div>
         <p className="text-sm text-muted-foreground mb-6 font-medium">Monitoring & Approvals</p>
 
+        {/* Link Child Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card rounded-2xl p-5 border border-primary/20 mb-8 shadow-sm group"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+              <Users className="w-4 h-4" />
+            </div>
+            <h2 className="text-sm font-bold text-foreground">Link Child Account</h2>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">
+            Enter the pairing code from your child's dashboard to synchronize their health data.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              placeholder="E.g. AB12CD"
+              value={pairingCodeInput}
+              onChange={(e) => setPairingCodeInput(e.target.value.toUpperCase())}
+              className="h-10 rounded-xl bg-white/50 border-white/40 focus:bg-white uppercase text-center font-bold tracking-widest"
+              maxLength={6}
+            />
+            <Button
+              onClick={() => {
+                linkChild(pairingCodeInput);
+                setPairingCodeInput('');
+              }}
+              className="rounded-xl gradient-calm px-6 font-bold shadow-md hover:shadow-glow transition-all"
+            >
+              Link
+            </Button>
+          </div>
+        </motion.div>
+
         {/* Pending Requests Section */}
         <AnimatePresence>
           {pendingRequests && pendingRequests.length > 0 && (
@@ -62,18 +101,24 @@ const CaretakerDashboard = () => {
               exit={{ opacity: 0, height: 0 }}
               className="mb-8"
             >
-              <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3">Pending Requests</h2>
-              <div className="space-y-3">
+              <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3 pl-2">Medical Access Requests</h2>
+              <div className="space-y-3 px-1">
                 {pendingRequests.map(req => (
-                  <div key={req.id} className="glass-card p-4 rounded-2xl border-l-4 border-amber-400 flex items-center justify-between">
+                  <div key={req.id} className="glass-card p-4 rounded-2xl border-l-4 border-amber-400 flex items-center justify-between shadow-sm">
                     <div>
-                      <p className="text-xs font-bold text-amber-600 mb-0.5">Doctor Access Request</p>
-                      <p className="text-sm font-bold text-foreground">{req.doctorName}</p>
+                      <p className="text-[10px] font-bold text-amber-600 uppercase mb-0.5 tracking-tight">Doctor Access Request</p>
+                      <p className="text-sm font-extrabold text-foreground">{req.doctorName}</p>
                     </div>
                     <div className="flex gap-2">
                       <button
+                        onClick={() => rejectRequest(req.id)}
+                        className="px-3 py-1.5 rounded-full bg-black/5 text-muted-foreground font-bold text-[10px] hover:bg-black/10 transition-colors"
+                      >
+                        Decline
+                      </button>
+                      <button
                         onClick={() => approveRequest(req.id)}
-                        className="px-3 py-1.5 rounded-full bg-green-500/10 text-green-700 font-bold text-xs hover:bg-green-500/20 transition-colors"
+                        className="px-4 py-1.5 rounded-full bg-primary text-white font-bold text-[10px] hover:bg-primary/90 shadow-md shadow-primary/20 transition-all active:scale-95"
                       >
                         Approve
                       </button>

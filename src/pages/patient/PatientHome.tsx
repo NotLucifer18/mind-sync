@@ -3,6 +3,7 @@ import { useApp } from '@/context/AppContext';
 import { useAI } from '@/hooks/useAI';
 import { Flame, Brain, Sparkles, Wind, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import AIInsightsPanel from "./AIInsightsPanel";
 import SOSButton from '@/components/SOSButton';
 
 const getMoodEmoji = (mood: number) => {
@@ -47,7 +48,7 @@ const mockMoodHistory = [
 ];
 
 const PatientHome = () => {
-  const { currentMood, setCurrentMood, streak } = useApp();
+  const { currentMood, setCurrentMood, streak, pairingCode } = useApp();
   const { ask, loading: aiLoading } = useAI();
   const [dailyTip, setDailyTip] = useState<string | null>(null);
   const [affirmation] = useState(() => affirmations[Math.floor(Math.random() * affirmations.length)]);
@@ -80,7 +81,9 @@ const PatientHome = () => {
 
   const fetchTip = async () => {
     const tip = await ask('journal', { text: `My current mood is ${currentMood}/100. Give me a personalized daily wellness tip.` });
-    if (tip) setDailyTip(tip);
+    if (tip && typeof tip === 'object') {
+      setDailyTip(tip.content);
+    }
   };
 
   const saveJournal = () => {
@@ -114,9 +117,16 @@ const PatientHome = () => {
             <p className="text-xs text-muted-foreground font-medium">Daily Check-in</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-orange-500/20 px-3 py-1.5 rounded-full backdrop-blur-md">
-          <Flame className="w-4 h-4 text-orange-500" />
-          <span className="font-bold text-orange-600 text-sm">{streak} Days</span>
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-2 bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-orange-500/20 px-3 py-1.5 rounded-full backdrop-blur-md">
+            <Flame className="w-4 h-4 text-orange-500" />
+            <span className="font-bold text-orange-600 text-sm">{streak} Days</span>
+          </div>
+          {pairingCode && (
+            <p className="text-[10px] font-bold text-muted-foreground bg-white/50 px-2 py-0.5 rounded-md border border-white/40">
+              Code: <span className="text-secondary select-all">{pairingCode}</span>
+            </p>
+          )}
         </div>
       </motion.div>
 
@@ -298,6 +308,9 @@ const PatientHome = () => {
           ))}
         </div>
       </motion.div>
+
+      {/* AI Intelligence Insights */}
+      <AIInsightsPanel />
 
       {/* Mood History Chart */}
       <motion.div

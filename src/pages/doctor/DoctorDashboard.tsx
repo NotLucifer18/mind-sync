@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 const DoctorDashboard = () => {
-  const { patients } = useApp();
+  const { patients, requestPatientAccess } = useApp();
   const { session } = useAuth();
   const navigate = useNavigate();
   const [isAdding, setIsAdding] = useState(false);
@@ -22,67 +22,12 @@ const DoctorDashboard = () => {
     setLoading(true);
 
     try {
-      // 1. Find the user by email (using a public profile search or RPC if needed)
-      // Note: In a real app, you might need a dedicated Edge Function to search by email securely.
-      // For this demo, we'll assume we can search profiles if we enabled generic read access.
-      // However, usually referencing profiles by email is restricted.
-      // Let's try searching the profiles table directly if the user set a comprehensive policy,
-      // OR better: Ask user for their exact ID? No, email is better UX.
-      // Workaround: We'll assume full_name matches for demo, or we need a specific RPC.
-      // ACTUALLY: Supabase Auth doesn't expose email to other users by default.
-
-      // ALTERNATIVE: Invite system. 
-      // For this "Fix Fully" scope, we will query profiles assuming we added a public email column or similar? 
-      // No, let's just insert into 'patient_access' if we know the ID, OR
-      // Let's try to query profiles by a match (if RLS allows listing all profiles).
-
-      // Let's assume for this demo the doctor knows the Patient ID (UUID) or we search by name (sketchy but works for demo).
-      // BETTER: We search by email if we added email to public profiles?
-      // Let's try inserting by ID for now, prompt user to enter "Patient ID".
-      // Wait, that's bad UX. 
-
-      // LET'S DO THIS: The doctor enters an Email. We use an RPC (if we had one) or we just try to find a profile 
-      // that matches the email (if we stored email in public profile). 
-      // We didn't store email in public profiles in my schema.
-
-      // Fallback for Demo: Enter "Patient Name" to search (since full_name is public).
-      const { data: foundUsers, error: searchError } = await supabase
-        .from('profiles')
-        .select('*')
-        .ilike('full_name', `%${email}%`) // Using input as name search for now
-        .limit(1);
-
-      if (searchError || !foundUsers || foundUsers.length === 0) {
-        toast.error('Patient not found. Try searching by precise name.');
-        setLoading(false);
-        return;
-      }
-
-      const patient = (foundUsers as any[])[0];
-
-      // 2. Insert into patient_access
-      const { error: linkError } = await (supabase as any)
-        .from('patient_access')
-        .insert({
-          patient_id: patient.id,
-          provider_id: session.user.id
-        });
-
-      if (linkError) {
-        if (linkError.code === '23505') { // Unique violation
-          toast.error('Patient already linked!');
-        } else {
-          throw linkError;
-        }
-      } else {
-        toast.success(`Linked with ${patient.full_name}! Refresh to see.`);
-        setIsAdding(false);
-        setEmail('');
-      }
-
-    } catch (err) {
+      await requestPatientAccess(email);
+      setIsAdding(false);
+      setEmail('');
+    } catch (err: any) {
       console.error(err);
-      toast.error('Failed to link patient');
+      toast.error(err.message || 'Failed to link patient');
     } finally {
       setLoading(false);
     }
@@ -115,7 +60,7 @@ const DoctorDashboard = () => {
             <div className="flex items-center space-x-2">
               <div className="grid flex-1 gap-2">
                 <Input
-                  placeholder="Search by User Name..."
+                  placeholder="Enter Email or Pairing Code..."
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />

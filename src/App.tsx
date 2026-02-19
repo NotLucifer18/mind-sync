@@ -13,6 +13,7 @@ import CaretakerDashboard from "@/pages/caretaker/CaretakerDashboard";
 import EmpathyTranslator from "@/pages/caretaker/EmpathyTranslator";
 import DoctorDashboard from "@/pages/doctor/DoctorDashboard";
 import Analytics from "@/pages/doctor/Analytics";
+import AdminDashboard from "@/pages/admin/AdminDashboard";
 import BottomNav from "@/components/BottomNav";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,13 @@ const DoctorRoutes = () => (
   <Routes>
     <Route path="/" element={<DoctorDashboard />} />
     <Route path="/analytics" element={<Analytics />} />
+    <Route path="*" element={<Navigate to="/" replace />} />
+  </Routes>
+);
+
+const AdminRoutes = () => (
+  <Routes>
+    <Route path="/" element={<AdminDashboard />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>
 );
@@ -71,6 +79,7 @@ const AppRoutes = () => {
       {role === 'patient' && <PatientRoutes />}
       {role === 'caretaker' && <CaretakerRoutes />}
       {role === 'doctor' && <DoctorRoutes />}
+      {role === 'admin' && <AdminRoutes />}
       <BottomNav />
     </>
   );

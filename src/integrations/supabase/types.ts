@@ -12,23 +12,32 @@ export type Database = {
       profiles: {
         Row: {
           id: string
-          role: 'patient' | 'caretaker' | 'doctor' | null
+          role: 'patient' | 'caretaker' | 'doctor' | 'admin' | null
           full_name: string | null
           avatar_url: string | null
+          email: string | null
+          username: string | null
+          pairing_code: string | null
           updated_at: string | null
         }
         Insert: {
           id: string
-          role?: 'patient' | 'caretaker' | 'doctor' | null
+          role?: 'patient' | 'caretaker' | 'doctor' | 'admin' | null
           full_name?: string | null
           avatar_url?: string | null
+          email?: string | null
+          username?: string | null
+          pairing_code?: string | null
           updated_at?: string | null
         }
         Update: {
           id?: string
-          role?: 'patient' | 'caretaker' | 'doctor' | null
+          role?: 'patient' | 'caretaker' | 'doctor' | 'admin' | null
           full_name?: string | null
           avatar_url?: string | null
+          email?: string | null
+          username?: string | null
+          pairing_code?: string | null
           updated_at?: string | null
         }
       }
@@ -104,12 +113,52 @@ export type Database = {
           created_at?: string
         }
       }
+      ai_logs: {
+        Row: {
+          id: string
+          user_id: string | null
+          type: string
+          prompt: string
+          response: string
+          metadata: Json
+          created_at: string
+          ip_address: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          type: string
+          prompt: string
+          response: string
+          metadata?: Json
+          created_at?: string
+          ip_address?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          type?: string
+          prompt?: string
+          response?: string
+          metadata?: Json
+          created_at?: string
+          ip_address?: string | null
+          user_agent?: string | null
+        }
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_email_by_username: {
+        Args: {
+          username_input: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
