@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp, UserRole } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,7 +6,6 @@ import { Brain, Sparkles, Mail, Lock, Loader2, ArrowLeft, ArrowRight, Heart, Use
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 
 const roles: { role: UserRole; label: string; icon: typeof Heart; desc: string; gradient: string }[] = [
   { role: 'patient', label: 'Member', icon: Heart, desc: 'Track mood, journal & get AI support', gradient: 'from-purple-500 to-cyan-400' },
@@ -19,44 +18,56 @@ const Login = () => {
   const { setRole } = useApp();
   const { session } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [isSignUp, setIsSignUp] = useState(false);
   const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
-  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
-  const [isMagicLink, setIsMagicLink] = useState(false);
+
+  // Auto-fill admin credentials when role is selected
+  useEffect(() => {
+    if (selectedRole === 'admin') {
+      setEmailOrUsername('lucifer');
+    } else {
+      // Don't clear it if we just swapped to/from signup in the same role
+      // but if we change role, reset
+    }
+  }, [selectedRole]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      if (selectedRole === 'admin') {
+        if (emailOrUsername.toLowerCase() !== 'lucifer' || password !== 'notlucifer18') {
+          throw new Error('Administrative credentials rejected (lucifer/notlucifer18)');
+        }
+        // Force login as the admin account
+        const { error } = await supabase.auth.signInWithPassword({
+          email: 'admin@mind-sync.com',
+          password: 'notlucifer18',
+        });
+        if (error) throw error;
+        toast.success('Admin authorized. Access granted.');
+        return;
+      }
+
       let finalEmail = emailOrUsername;
 
       // If not an email, try to lookup as username
-      if (!isSignUp && !isMagicLink && !emailOrUsername.includes('@')) {
-        const { data: resolvedEmail, error: lookupError } = await supabase.rpc('get_email_by_username', {
+      if (!isSignUp && !emailOrUsername.includes('@')) {
+        const { data, error: lookupError } = await (supabase.rpc as any)('get_email_by_username', {
           username_input: emailOrUsername
         });
 
-        if (lookupError || !resolvedEmail) {
+        if (lookupError || !data) {
           throw new Error('Username not found. Please use your email.');
         }
-        finalEmail = resolvedEmail;
+        finalEmail = data as string;
       }
 
-      if (isMagicLink) {
-        const { error } = await supabase.auth.signInWithOtp({
-          email: finalEmail,
-          options: {
-            shouldCreateUser: false,
-            data: { role: selectedRole },
-            emailRedirectTo: window.location.origin,
-          }
-        });
-        if (error) throw error;
-        toast.success('✨ Magic Link sent! Check your email.');
-      } else if (isSignUp) {
+      if (isSignUp) {
         const { data, error } = await supabase.auth.signUp({
           email: emailOrUsername,
           password,
@@ -132,9 +143,7 @@ const Login = () => {
         className="flex flex-col items-center mb-12 z-10 text-center"
       >
         <div className="relative mb-8 pt-2">
-          {/* Outer glow ring */}
           <div className="absolute -inset-4 bg-gradient-to-r from-cyan-400 to-purple-600 rounded-[2.5rem] blur-2xl opacity-20 animate-pulse" />
-
           <div className="w-28 h-28 rounded-[2rem] bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-3xl border border-white/20 flex items-center justify-center shadow-2xl relative group cursor-default overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-tr from-cyan-400/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
             <Brain className="w-14 h-14 text-white relative z-10 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]" />
@@ -179,9 +188,7 @@ const Login = () => {
                 onClick={() => setSelectedRole(role)}
                 className="group relative flex flex-col items-start gap-4 p-6 rounded-[2.5rem] bg-white/[0.03] hover:bg-white/[0.08] transition-all duration-500 border border-white/10 hover:border-white/30 backdrop-blur-3xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden"
               >
-                {/* Holographic background flash */}
                 <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/5 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out" />
-
                 <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-lg group-hover:scale-110 group-hover:rotate-6 transition-all duration-500`}>
                   <Icon className="w-7 h-7 text-white" />
                 </div>
@@ -189,7 +196,6 @@ const Login = () => {
                   <div className="font-black text-white text-2xl mb-1 tracking-tight">{label}</div>
                   <p className="text-xs text-slate-400 font-medium leading-relaxed opacity-80 group-hover:opacity-100 transition-opacity">{desc}</p>
                 </div>
-
                 <div className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
                   <ArrowRight className="w-5 h-5 text-white" />
                 </div>
@@ -204,11 +210,17 @@ const Login = () => {
             exit={{ opacity: 0, y: 20 }}
             className="w-full max-w-sm z-10 bg-white/[0.02] backdrop-blur-[40px] p-10 rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-white/10 relative overflow-hidden"
           >
-            {/* Top accent light */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-[1px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_15px_rgba(34,211,238,0.5)]" />
 
             <div className="flex items-center gap-4 mb-10 relative">
-              <button onClick={() => setSelectedRole(null)} className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors border border-white/10">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRole(null);
+                  setIsSignUp(false);
+                }}
+                className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors border border-white/10"
+              >
                 <ArrowLeft className="w-5 h-5 text-white" />
               </button>
               <div>
@@ -222,70 +234,49 @@ const Login = () => {
             </div>
 
             <form onSubmit={handleAuth} className="space-y-6 relative">
-              {!isMagicLink && (
-                <div className="space-y-4">
+              <div className="space-y-4">
+                <div className="relative group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500/30 to-purple-500/30 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition duration-500" />
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 z-10" />
+                  <Input
+                    type="text"
+                    placeholder={selectedRole === 'admin' ? "ID: lucifer" : (isSignUp ? "Institutional Email" : "Identity (Username/Email)")}
+                    className="relative h-14 pl-12 rounded-2xl bg-black/40 border-white/10 text-white placeholder:text-slate-600 focus:ring-cyan-500/20 focus:border-cyan-500/40 transition-all text-base"
+                    value={emailOrUsername}
+                    onChange={(e) => setEmailOrUsername(e.target.value)}
+                    required
+                    readOnly={selectedRole === 'admin'}
+                  />
+                </div>
+
+                {isSignUp && selectedRole !== 'admin' && (
                   <div className="relative group">
                     <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500/30 to-purple-500/30 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition duration-500" />
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 z-10" />
+                    <Brain className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 z-10" />
                     <Input
                       type="text"
-                      placeholder={isSignUp ? "Institutional Email" : "Identity (Username/Email)"}
+                      placeholder="Create Global Username"
                       className="relative h-14 pl-12 rounded-2xl bg-black/40 border-white/10 text-white placeholder:text-slate-600 focus:ring-cyan-500/20 focus:border-cyan-500/40 transition-all text-base"
-                      value={emailOrUsername}
-                      onChange={(e) => setEmailOrUsername(e.target.value)}
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
                       required
                     />
                   </div>
+                )}
 
-                  {isSignUp && (
-                    <div className="relative group">
-                      <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500/30 to-purple-500/30 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition duration-500" />
-                      <Brain className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 z-10" />
-                      <Input
-                        type="text"
-                        placeholder="Create Global Username"
-                        className="relative h-14 pl-12 rounded-2xl bg-black/40 border-white/10 text-white placeholder:text-slate-600 focus:ring-cyan-500/20 focus:border-cyan-500/40 transition-all text-base"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        required
-                      />
-                    </div>
-                  )}
-
-                  <div className="relative group">
-                    <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500/30 to-purple-500/30 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition duration-500" />
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 z-10" />
-                    <Input
-                      type="password"
-                      placeholder="Secure Password"
-                      className="relative h-14 pl-12 rounded-2xl bg-black/40 border-white/10 text-white placeholder:text-slate-600 focus:ring-cyan-500/20 focus:border-cyan-500/40 transition-all text-base"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
-                  </div>
+                <div className="relative group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500/30 to-purple-500/30 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition duration-500" />
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 z-10" />
+                  <Input
+                    type="password"
+                    placeholder="Secure Password"
+                    className="relative h-14 pl-12 rounded-2xl bg-black/40 border-white/10 text-white placeholder:text-slate-600 focus:ring-cyan-500/20 focus:border-cyan-500/40 transition-all text-base"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
                 </div>
-              )}
-
-              {isMagicLink && (
-                <div className="space-y-4">
-                  <div className="relative group">
-                    <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500/30 to-purple-500/30 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition duration-500" />
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 z-10" />
-                    <Input
-                      type="email"
-                      placeholder="Auth Email Address"
-                      className="relative h-14 pl-12 rounded-2xl bg-black/40 border-white/10 text-white placeholder:text-slate-600 focus:ring-cyan-500/20 focus:border-cyan-500/40 transition-all text-base"
-                      value={emailOrUsername}
-                      onChange={(e) => setEmailOrUsername(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="p-4 rounded-2xl bg-cyan-500/5 border border-cyan-500/10 text-[10px] text-cyan-200/60 leading-relaxed font-medium text-center italic">
-                    Binary validation link will be dispatched to your inbox.
-                  </div>
-                </div>
-              )}
+              </div>
 
               <button
                 type="submit"
@@ -296,23 +287,15 @@ const Login = () => {
                   {loading ? (
                     <Loader2 className="w-6 h-6 animate-spin text-white" />
                   ) : (
-                    <span className="text-white font-black text-lg tracking-tight">
-                      {isMagicLink ? 'DISPATCH LINK' : (isSignUp ? 'ESTABLISH IDENTITY' : 'PROCEED')}
+                    <span className="text-white font-black text-lg tracking-tight uppercase">
+                      {selectedRole === 'admin' ? 'BYPASS SECURITY' : (isSignUp ? 'ESTABLISH IDENTITY' : 'PROCEED')}
                     </span>
                   )}
                 </div>
               </button>
 
               <div className="flex flex-col gap-4 mt-8">
-                <button
-                  type="button"
-                  onClick={() => setIsMagicLink(!isMagicLink)}
-                  className="text-xs text-slate-500 font-bold hover:text-cyan-400 transition-colors tracking-wide"
-                >
-                  {isMagicLink ? 'VIA PASSWORD PROTOCOL' : '✨ INITIATE MAGIC LINK AUTH'}
-                </button>
-
-                {!isSignUp && !isMagicLink && (
+                {selectedRole !== 'admin' && !isSignUp && (
                   <button
                     type="button"
                     onClick={async () => {
@@ -331,17 +314,19 @@ const Login = () => {
               </div>
             </form>
 
-            <div className="mt-10 pt-6 border-t border-white/5 text-center">
-              <p className="text-sm text-slate-500">
-                {isSignUp ? "Known identity?" : "New sync candidate?"}
-                <button
-                  onClick={() => setIsSignUp(!isSignUp)}
-                  className="ml-2 text-white font-black hover:text-cyan-400 transition-colors"
-                >
-                  {isSignUp ? 'SIGN IN' : 'REGISTER'}
-                </button>
-              </p>
-            </div>
+            {selectedRole !== 'admin' && (
+              <div className="mt-10 pt-6 border-t border-white/5 text-center">
+                <p className="text-sm text-slate-500">
+                  {isSignUp ? "Known identity?" : "New sync candidate?"}
+                  <button
+                    onClick={() => setIsSignUp(!isSignUp)}
+                    className="ml-2 text-white font-black hover:text-cyan-400 transition-colors"
+                  >
+                    {isSignUp ? 'SIGN IN' : 'REGISTER'}
+                  </button>
+                </p>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
