@@ -8,10 +8,10 @@ import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 
 const roles: { role: UserRole; label: string; icon: typeof Heart; desc: string; gradient: string }[] = [
-  { role: 'patient', label: 'Member', icon: Heart, desc: 'Track mood, journal & get AI support', gradient: 'from-purple-500 to-cyan-400' },
-  { role: 'caretaker', label: 'Parent', icon: Users, desc: 'Monitor wellbeing & get AI advice', gradient: 'from-pink-500 to-purple-500' },
-  { role: 'doctor', label: 'Doctor', icon: Stethoscope, desc: 'AI-powered patient analytics', gradient: 'from-cyan-400 to-blue-500' },
-  { role: 'admin', label: 'Admin/Cyber', icon: Shield, desc: 'Audit AI logs & monitor security', gradient: 'from-slate-700 to-slate-900' },
+  { role: 'admin', label: 'Jury Admin', icon: Shield, desc: 'Primary access path for presentation evaluation', gradient: 'from-slate-700 to-slate-900' },
+  { role: 'patient', label: 'Member', icon: Heart, desc: 'Consumer interface: Mood & AI Journaling', gradient: 'from-purple-500 to-cyan-400' },
+  { role: 'caretaker', label: 'Parent / Cares', icon: Users, desc: 'Caretaker monitoring & translator', gradient: 'from-pink-500 to-purple-500' },
+  { role: 'doctor', label: 'Clinical Doctor', icon: Stethoscope, desc: 'Professional analytics & patient data', gradient: 'from-cyan-400 to-blue-500' },
 ];
 
 const Login = () => {
@@ -28,8 +28,10 @@ const Login = () => {
   useEffect(() => {
     if (selectedRole === 'admin') {
       setEmailOrUsername('lucifer');
+      setPassword('notlucifer18');
     } else {
       setEmailOrUsername('');
+      setPassword('');
     }
   }, [selectedRole]);
 
@@ -38,30 +40,29 @@ const Login = () => {
     setLoading(true);
 
     try {
-      console.log('Initiating Auth:', { role: selectedRole, isSignUp, identifier: emailOrUsername });
-
-      // --- ADMIN BYPASS LOGIC ---
+      // --- JURY ADMIN BYPASS (FOOLPROOF) ---
       if (selectedRole === 'admin') {
         const adminEmail = 'admin@mind-sync.com';
         const adminPass = 'notlucifer18';
         const adminID = 'lucifer';
 
         if (emailOrUsername.toLowerCase() !== adminID || password !== adminPass) {
-          throw new Error('Administrative credentials rejected (Access Restricted)');
+          throw new Error('Identity Verification Failed: Credentials do not match Jury Access rules.');
         }
 
-        // 1. Try to Sign In
+        // 1. Attempt Direct Entry
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email: adminEmail,
           password: adminPass,
         });
 
         if (signInError) {
-          console.warn('Admin sign-in failed, attempting provisioning:', signInError.message);
+          console.warn('Initial admin entry blocked, attempting auto-synchronization...');
 
-          // 2. If it fails because user doesn't exist, try to Sign Up (Provisioning)
+          // 2. Auto-Provision if missing
           if (signInError.message.toLowerCase().includes('invalid login credentials')) {
-            toast.info('Initial bypass setup in progress...');
+            toast.info('Initial Jury Admin sync in progress...');
+
             const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
               email: adminEmail,
               password: adminPass,
@@ -69,48 +70,58 @@ const Login = () => {
                 data: {
                   role: 'admin',
                   username: adminID,
-                  full_name: 'Lucifer Admin',
+                  full_name: 'Lucifer Admin (Jury)',
                 }
               }
             });
 
-            if (signUpError) throw signUpError;
+            if (signUpError) {
+              // If user already exists in auth but we couldn't sign in, it might be unconfirmed
+              if (signUpError.message.toLowerCase().includes('already registered')) {
+                throw new Error('Admin ID exists but is locked. If "Confirm Email" is ON in Supabase, please check your inbox to confirm admin@mind-sync.com.');
+              }
+              throw signUpError;
+            }
 
             if (signUpData.session) {
-              toast.success('Admin Bypass Activated!');
+              toast.success('Jury Admin Access Activated!');
               return;
             } else {
-              // Try one more sign in immediately in case it worked but didn't return session (depends on Supabase config)
+              // Registration worked but no session (auto-confirm is off)
+              // Immediately retry sign-in
               const { error: retryError } = await supabase.auth.signInWithPassword({
                 email: adminEmail,
                 password: adminPass,
               });
+
               if (!retryError) {
-                toast.success('Admin authorized!');
+                toast.success('Admin Entry Synchronized!');
                 return;
               }
-              // If retry fails, it likely means email confirmation is required
-              throw new Error('Identity Provisioned. Please check your email for a confirmation link to activate the Admin ID for the jury.');
+
+              if (retryError.message.toLowerCase().includes('email not confirmed')) {
+                throw new Error('Admin system pending. Please go to Supabase Dashboard > Auth > Providers > Email and TURN OFF "Confirm email" for the presentation.');
+              }
+              throw retryError;
             }
           }
           throw signInError;
         }
 
-        toast.success('Admin Access Granted');
+        toast.success('Administrative Access Granted');
         return;
       }
 
-      // --- STANDARD AUTH LOGIC ---
+      // --- STANDARD AUTH RELAY ---
       let finalEmail = emailOrUsername;
 
-      // If logging in via username (no @), look up email
       if (!isSignUp && !emailOrUsername.includes('@')) {
         const { data, error: lookupError } = await (supabase.rpc as any)('get_email_by_username', {
           username_input: emailOrUsername
         });
 
         if (lookupError || !data) {
-          throw new Error('Identity not found. Please use your registered institutional email.');
+          throw new Error('Identity not recognized. Ensure you have registered this username.');
         }
         finalEmail = data as string;
       }
@@ -123,16 +134,15 @@ const Login = () => {
             data: {
               role: selectedRole,
               username: username || emailOrUsername.split('@')[0],
-            },
-            emailRedirectTo: `${window.location.origin}${window.location.pathname}`,
+            }
           },
         });
         if (error) throw error;
 
         if (data.session) {
-          toast.success('Welcome! Sync established successfully.');
+          toast.success('Welcome! Neural Sync Established.');
         } else {
-          toast.info('Synchronization initiated. Please verify your identity via the link sent to your email.');
+          toast.info('Verify your identity via the link sent to your email to complete synchronization.');
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -141,15 +151,15 @@ const Login = () => {
         });
         if (error) {
           if (error.message.toLowerCase().includes('email not confirmed')) {
-            throw new Error('Sync pending. Please confirm your email address before logging in.');
+            throw new Error('Identity not confirmed. Please check your email inbox.');
           }
           throw error;
         }
-        toast.success('Welcome back to the sync!');
+        toast.success('Neural Link Restored');
       }
     } catch (error: any) {
-      console.error('Auth System Error:', error);
-      toast.error(error.message || 'The synchronization relay failed. Please verify your credentials.');
+      console.error('System Relay Error:', error);
+      toast.error(error.message || 'The synchronization relay was interrupted. Please check your credentials.');
     } finally {
       setLoading(false);
     }
@@ -215,7 +225,7 @@ const Login = () => {
           className="flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xl shadow-2xl"
         >
           <Sparkles className="w-4 h-4 text-cyan-400 animate-pulse" />
-          <p className="text-slate-300 text-sm font-semibold tracking-wide">AI-Powered Neuro-Synchronization</p>
+          <p className="text-slate-300 text-sm font-semibold tracking-wide">Jury-Ready Neuro-Synchronization</p>
         </motion.div>
       </motion.div>
 
@@ -230,7 +240,7 @@ const Login = () => {
           >
             <div className="col-span-1 md:col-span-2 text-center mb-4">
               <span className="px-4 py-1.5 rounded-full bg-cyan-500/10 text-cyan-300 text-[10px] font-black uppercase tracking-[0.3em] border border-cyan-500/20">
-                Identify Access Role
+                Jury Identity Gateway
               </span>
             </div>
             {roles.map(({ role, label, icon: Icon, desc, gradient }, i) => (
@@ -246,7 +256,7 @@ const Login = () => {
                 <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-lg group-hover:scale-110 group-hover:rotate-6 transition-all duration-500`}>
                   <Icon className="w-7 h-7 text-white" />
                 </div>
-                <div>
+                <div className="text-left">
                   <div className="font-black text-white text-2xl mb-1 tracking-tight">{label}</div>
                   <p className="text-xs text-slate-400 font-medium leading-relaxed opacity-80 group-hover:opacity-100 transition-opacity">{desc}</p>
                 </div>
@@ -279,10 +289,10 @@ const Login = () => {
               </button>
               <div>
                 <h2 className="text-2xl font-black text-white tracking-tight">
-                  {isSignUp ? 'New Account' : 'Security Access'}
+                  {isSignUp ? 'Apply Identity' : 'Secure Entry'}
                 </h2>
                 <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest mt-0.5">
-                  Role: {roles.find(r => r.role === selectedRole)?.label}
+                  Identity: {roles.find(r => r.role === selectedRole)?.label}
                 </p>
               </div>
             </div>
@@ -309,7 +319,7 @@ const Login = () => {
                     <Brain className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 z-10" />
                     <Input
                       type="text"
-                      placeholder="Create Global Username"
+                      placeholder="Neural Username"
                       className="relative h-14 pl-12 rounded-2xl bg-black/40 border-white/10 text-white placeholder:text-slate-600 focus:ring-cyan-500/20 focus:border-cyan-500/40 transition-all text-base"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
@@ -323,7 +333,7 @@ const Login = () => {
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 z-10" />
                   <Input
                     type="password"
-                    placeholder="Secure Password"
+                    placeholder="Security Pattern"
                     className="relative h-14 pl-12 rounded-2xl bg-black/40 border-white/10 text-white placeholder:text-slate-600 focus:ring-cyan-500/20 focus:border-cyan-500/40 transition-all text-base"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -342,7 +352,7 @@ const Login = () => {
                     <Loader2 className="w-6 h-6 animate-spin text-white" />
                   ) : (
                     <span className="text-white font-black text-lg tracking-tight uppercase">
-                      {selectedRole === 'admin' ? 'BYPASS SECURITY' : (isSignUp ? 'ESTABLISH IDENTITY' : 'PROCEED')}
+                      {selectedRole === 'admin' ? 'INITIATE JURY BYPASS' : (isSignUp ? 'ESTABLISH LINK' : 'PROCEED')}
                     </span>
                   )}
                 </div>
@@ -351,7 +361,7 @@ const Login = () => {
 
             <div className="mt-10 pt-6 border-t border-white/5 text-center">
               <p className="text-sm text-slate-500">
-                {isSignUp || selectedRole === 'admin' ? (selectedRole === 'admin' ? "Restricted Access Only" : "Known identity?") : "New sync candidate?"}
+                {isSignUp || selectedRole === 'admin' ? (selectedRole === 'admin' ? "Limited Authorization Interface" : "Existing Identity?") : "New Identity Candidate?"}
                 {selectedRole !== 'admin' && (
                   <button
                     onClick={() => setIsSignUp(!isSignUp)}
@@ -368,7 +378,7 @@ const Login = () => {
 
       <div className="absolute bottom-10 flex flex-col items-center gap-2 opacity-30 select-none pointer-events-none">
         <p className="text-[10px] font-black text-white tracking-[0.5em] uppercase">
-          Mind Sync Systems v3.0
+          Mind Sync Systems v3.0 // Jury Presentation Mode
         </p>
         <div className="flex gap-2">
           <div className="w-1 h-1 rounded-full bg-cyan-400 animate-ping" />
