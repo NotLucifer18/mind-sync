@@ -1,0 +1,258 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Brand Colors - Deep & Calming */
+    --primary: 252 85% 60%;
+    /* Vibrant Purple */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 190 80% 50%;
+    /* Cyan/Teal */
+    --secondary-foreground: 0 0% 100%;
+
+    --accent: 310 70% 55%;
+    /* Soft Pink/Magenta */
+    --accent-foreground: 0 0% 100%;
+
+    /* Neutral Tones */
+    --background: 240 20% 98%;
+    /* Very light cool gray */
+    --foreground: 240 20% 15%;
+    /* Dark cool gray */
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 20% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 20% 15%;
+
+    --muted: 240 10% 94%;
+    --muted-foreground: 240 10% 50%;
+
+    --border: 240 15% 90%;
+    --input: 240 15% 90%;
+    --ring: 252 85% 60%;
+
+    --radius: 1.25rem;
+    /* Softer 20px radius */
+
+    /* Semantic */
+    --destructive: 0 85% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 150 80% 40%;
+    --warning: 38 95% 55%;
+
+    /* Custom Gradients */
+    --gradient-calm: linear-gradient(135deg, hsl(252, 85%, 65%), hsl(190, 80%, 55%));
+    --gradient-aurora: linear-gradient(135deg, hsl(252, 85%, 65%) 0%, hsl(310, 70%, 60%) 50%, hsl(190, 80%, 55%) 100%);
+    --gradient-glass: linear-gradient(145deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.3));
+
+    /* Shadows */
+    --shadow-soft: 0 10px 40px -10px rgba(100, 100, 255, 0.15);
+    --shadow-glow: 0 0 25px -5px rgba(120, 100, 255, 0.4);
+    --shadow-float: 0 20px 40px -10px rgba(0, 0, 0, 0.1);
+  }
+
+  .dark {
+    --background: 240 20% 8%;
+    /* Deep void */
+    --foreground: 240 10% 96%;
+
+    --card: 240 15% 12%;
+    --card-foreground: 240 10% 96%;
+
+    --popover: 240 15% 12%;
+    --popover-foreground: 240 10% 96%;
+
+    --primary: 252 90% 70%;
+    --primary-foreground: 0 0% 100%;
+
+    --muted: 240 15% 15%;
+    --muted-foreground: 240 10% 65%;
+
+    --border: 240 15% 20%;
+    --input: 240 15% 20%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-primary/20;
+    font-family: 'Outfit', sans-serif;
+  }
+}
+
+@layer utilities {
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .shadow-float {
+    box-shadow: var(--shadow-float);
+  }
+
+  .gradient-calm {
+    background: var(--gradient-calm);
+  }
+
+  .gradient-aurora {
+    background: var(--gradient-aurora);
+  }
+
+  .bg-noise {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+  }
+
+  .dark .glass-card {
+    background: rgba(20, 20, 30, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Custom Scrollbar for hidden utility */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Animations */
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+
+  /* Increased float range */
+}
+
+@keyframes breathe-ring {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.5;
+  }
+
+  50% {
+    transform: scale(1.4);
+    opacity: 0.1;
+  }
+
+  100% {
+    transform: scale(0.95);
+    opacity: 0.5;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes breathe-glow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 20px -5px var(--primary);
+  }
+
+  50% {
+    box-shadow: 0 0 35px 5px var(--primary);
+  }
+}
+
+@keyframes blob-float {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}
+
+.animate-blob {
+  animation: blob-float 10s infinite ease-in-out;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
+}
+
+@keyframes shine {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shine {
+  animation: shine 1.5s ease-in-out infinite;
+}
