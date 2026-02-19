@@ -40,24 +40,34 @@ const Login = () => {
 
     try {
       if (selectedRole === 'admin') {
-        if (emailOrUsername.toLowerCase() !== 'lucifer' || password !== 'notlucifer18') {
-          throw new Error('Administrative credentials rejected (Access Restricted)');
+        const adminID = 'lucifer';
+        const adminPass = 'notlucifer18';
+
+        if (emailOrUsername.toLowerCase() !== adminID || password !== adminPass) {
+          throw new Error('Security Breach: Administrative credentials rejected.');
         }
 
-        // Find the email for 'lucifer'
-        const { data: adminEmail, error: lookupError } = await (supabase.rpc as any)('get_email_by_username', {
-          username_input: 'lucifer'
-        });
-
-        if (lookupError || !adminEmail) {
-          throw new Error('Admin identity "lucifer" not found in system.');
+        // Attempt to find the real email for 'lucifer' but fallback to demo email
+        let targetEmail = 'admin@mind-sync.com';
+        try {
+          const { data } = await (supabase.rpc as any)('get_email_by_username', {
+            username_input: adminID
+          });
+          if (data) targetEmail = data as string;
+        } catch (e) {
+          console.error("Bypass lookup error:", e);
         }
 
         const { error } = await supabase.auth.signInWithPassword({
-          email: adminEmail as string,
-          password: 'notlucifer18',
+          email: targetEmail,
+          password: adminPass,
         });
-        if (error) throw error;
+
+        if (error) {
+          // If fallback also fails, report system error without leaking passwords
+          throw new Error(`Admin Authorization Failed: ${error.message}`);
+        }
+
         toast.success('Admin authorized. Access granted.');
         return;
       }
