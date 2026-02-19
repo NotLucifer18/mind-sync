@@ -38,52 +38,65 @@ const Login = () => {
     setLoading(true);
 
     try {
+      // --- ADMIN BYPASS LOGIC ---
       if (selectedRole === 'admin') {
-        const adminID = 'lucifer';
+        const adminEmail = 'admin@mind-sync.com';
         const adminPass = 'notlucifer18';
+        const adminID = 'lucifer';
 
         if (emailOrUsername.toLowerCase() !== adminID || password !== adminPass) {
-          throw new Error('Security Breach: Administrative credentials rejected.');
+          throw new Error('Administrative credentials rejected (Access Restricted)');
         }
 
-        // Attempt to find the real email for 'lucifer' or use demo default
-        let targetEmail = 'admin@mind-sync.com';
-        try {
-          const { data } = await (supabase.rpc as any)('get_email_by_username', {
-            username_input: adminID
-          });
-          if (data) targetEmail = data as string;
-        } catch (e) {
-          console.error("Bypass lookup error:", e);
-        }
-
-        const { error } = await supabase.auth.signInWithPassword({
-          email: targetEmail,
+        // 1. Try to Sign In
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: adminEmail,
           password: adminPass,
         });
 
-        if (error) {
-          // If the account doesn't exist, this is likely why the bypass is failing
-          if (error.message.includes("Invalid login credentials")) {
-            throw new Error("Admin account 'admin@mind-sync.com' not found. Please register it once with password 'notlucifer18'.");
+        if (signInError) {
+          // 2. If it fails because user doesn't exist, try to Sign Up (Provisioning)
+          if (signInError.message.includes('Invalid login credentials')) {
+            toast.info('Initial bypass setup in progress...');
+            const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+              email: adminEmail,
+              password: adminPass,
+              options: {
+                data: {
+                  role: 'admin',
+                  username: adminID,
+                  full_name: 'Lucifer Admin',
+                }
+              }
+            });
+
+            if (signUpError) throw signUpError;
+
+            if (signUpData.session) {
+              toast.success('Admin Bypass Activated!');
+              return;
+            } else {
+              throw new Error('Admin provisioned. Please check email or try again if auto-confirm is off.');
+            }
           }
-          throw new Error(`Admin Authorization Failed: ${error.message}`);
+          throw signInError;
         }
 
-        toast.success('Admin authorized. Access granted.');
+        toast.success('Admin Access Granted');
         return;
       }
 
+      // --- STANDARD AUTH LOGIC ---
       let finalEmail = emailOrUsername;
 
-      // If not an email, try to lookup as username
+      // If logging in via username (no @), look up email
       if (!isSignUp && !emailOrUsername.includes('@')) {
         const { data, error: lookupError } = await (supabase.rpc as any)('get_email_by_username', {
           username_input: emailOrUsername
         });
 
         if (lookupError || !data) {
-          throw new Error('Username not found. Please use your email.');
+          throw new Error('Username not found. Please use your registered email.');
         }
         finalEmail = data as string;
       }
@@ -103,9 +116,9 @@ const Login = () => {
         if (error) throw error;
 
         if (data.session) {
-          toast.success('Welcome! Account created successfully.');
+          toast.success('Welcome! Sync established successfully.');
         } else {
-          toast.success('Check your email to confirm your account!');
+          toast.success('Synchronization pending. Check your email!');
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -113,10 +126,11 @@ const Login = () => {
           password,
         });
         if (error) throw error;
-        toast.success('Welcome back!');
+        toast.success('Welcome back to the sync!');
       }
     } catch (error: any) {
-      toast.error(error.message);
+      console.error('Auth Error:', error);
+      toast.error(error.message || 'Authentication system failure');
     } finally {
       setLoading(false);
     }
@@ -314,8 +328,6 @@ const Login = () => {
                   )}
                 </div>
               </button>
-
-              <div className="flex flex-col gap-4 mt-8" />
             </form>
 
             <div className="mt-10 pt-6 border-t border-white/5 text-center">
