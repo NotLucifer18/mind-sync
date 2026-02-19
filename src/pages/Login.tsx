@@ -38,6 +38,8 @@ const Login = () => {
     setLoading(true);
 
     try {
+      console.log('Initiating Auth:', { role: selectedRole, isSignUp, identifier: emailOrUsername });
+
       // --- ADMIN BYPASS LOGIC ---
       if (selectedRole === 'admin') {
         const adminEmail = 'admin@mind-sync.com';
@@ -55,8 +57,10 @@ const Login = () => {
         });
 
         if (signInError) {
+          console.warn('Admin sign-in failed, attempting provisioning:', signInError.message);
+
           // 2. If it fails because user doesn't exist, try to Sign Up (Provisioning)
-          if (signInError.message.includes('Invalid login credentials')) {
+          if (signInError.message.toLowerCase().includes('invalid login credentials')) {
             toast.info('Initial bypass setup in progress...');
             const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
               email: adminEmail,
@@ -76,7 +80,9 @@ const Login = () => {
               toast.success('Admin Bypass Activated!');
               return;
             } else {
-              throw new Error('Admin provisioned. Please check email or try again if auto-confirm is off.');
+              // Account created but confirmation probably required
+              toast.success('Admin account provisioned!');
+              throw new Error('System sync required. If Email Confirmation is enabled in Supabase, please click the link in your email. Otherwise, try logging in again.');
             }
           }
           throw signInError;
@@ -96,7 +102,7 @@ const Login = () => {
         });
 
         if (lookupError || !data) {
-          throw new Error('Username not found. Please use your registered email.');
+          throw new Error('Identity not found. Please use your registered institutional email.');
         }
         finalEmail = data as string;
       }
@@ -110,7 +116,7 @@ const Login = () => {
               role: selectedRole,
               username: username || emailOrUsername.split('@')[0],
             },
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: `${window.location.origin}${window.location.pathname}`,
           },
         });
         if (error) throw error;
@@ -118,19 +124,24 @@ const Login = () => {
         if (data.session) {
           toast.success('Welcome! Sync established successfully.');
         } else {
-          toast.success('Synchronization pending. Check your email!');
+          toast.info('Synchronization initiated. Please verify your identity via the link sent to your email.');
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email: finalEmail,
           password,
         });
-        if (error) throw error;
+        if (error) {
+          if (error.message.toLowerCase().includes('email not confirmed')) {
+            throw new Error('Sync pending. Please confirm your email address before logging in.');
+          }
+          throw error;
+        }
         toast.success('Welcome back to the sync!');
       }
     } catch (error: any) {
-      console.error('Auth Error:', error);
-      toast.error(error.message || 'Authentication system failure');
+      console.error('Auth System Error:', error);
+      toast.error(error.message || 'The synchronization relay failed. Please verify your credentials.');
     } finally {
       setLoading(false);
     }

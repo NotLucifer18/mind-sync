@@ -192,10 +192,17 @@ BEGIN
     new.raw_user_meta_data->>'role',
     new.raw_user_meta_data->>'full_name',
     new.raw_user_meta_data->>'avatar_url',
-    new.email, -- Crucial for login lookup
-    COALESCE(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1)), -- Fallback to email prefix if no username
+    new.email,
+    COALESCE(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1)),
     new_pairing_code
-  );
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    role = EXCLUDED.role,
+    full_name = EXCLUDED.full_name,
+    avatar_url = EXCLUDED.avatar_url,
+    email = EXCLUDED.email,
+    username = COALESCE(profiles.username, EXCLUDED.username);
+    
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
