@@ -80,9 +80,17 @@ const Login = () => {
               toast.success('Admin Bypass Activated!');
               return;
             } else {
-              // Account created but confirmation probably required
-              toast.success('Admin account provisioned!');
-              throw new Error('System sync required. If Email Confirmation is enabled in Supabase, please click the link in your email. Otherwise, try logging in again.');
+              // Try one more sign in immediately in case it worked but didn't return session (depends on Supabase config)
+              const { error: retryError } = await supabase.auth.signInWithPassword({
+                email: adminEmail,
+                password: adminPass,
+              });
+              if (!retryError) {
+                toast.success('Admin authorized!');
+                return;
+              }
+              // If retry fails, it likely means email confirmation is required
+              throw new Error('Identity Provisioned. Please check your email for a confirmation link to activate the Admin ID for the jury.');
             }
           }
           throw signInError;
