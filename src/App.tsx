@@ -54,13 +54,10 @@ const AppRoutes = () => {
   const { role, setRole } = useApp();
   const { session, loading } = useAuth();
 
-  // Sync session with role state
-  // Check user metadata for role, default to 'patient' if not found
-  if (session && !role && !loading) {
-    const savedRole = session.user.user_metadata.role as UserRole;
-    setRole(savedRole || 'patient');
-  }
+  // EMERGENCY BYPASS: If session is missing but a role is manually set (e.g., from Login bypass), allow entry
+  if (!session && !role && !loading) return <Login />;
 
+  // Wait for loading but show Login if no session/role after load
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
@@ -69,10 +66,23 @@ const AppRoutes = () => {
     );
   }
 
-  if (!session) return <Login />;
+  // Final check: if no session AND no role, go to Login
+  if (!session && !role) return <Login />;
 
-  // If session exists but role is somehow still null (should be caught above), default to patient view or loading
-  if (!role) return null;
+  // If we have a role (even without session), render the routes
+  if (role) {
+    return (
+      <>
+        {role === 'patient' && <PatientRoutes />}
+        {role === 'caretaker' && <CaretakerRoutes />}
+        {role === 'doctor' && <DoctorRoutes />}
+        {role === 'admin' && <AdminRoutes />}
+        <BottomNav />
+      </>
+    );
+  }
+
+  return <Login />;
 
   return (
     <>

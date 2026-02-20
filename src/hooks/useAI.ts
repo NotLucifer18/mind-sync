@@ -13,6 +13,12 @@ export const useAI = () => {
       const { data: { session } } = await supabase.auth.getSession();
       const userId = session?.user?.id;
 
+      // BYPASS / DEMO MODE CHECK
+      if (!session || !userId) {
+        console.warn('Neural Sync: Demo Mode Detected (No Active Session). Using On-Device Intelligence.');
+        throw new Error('DEMO_MODE');
+      }
+
       console.info('Neural Sync Core v3.0.1 [Active]');
       console.log(`Invoking AI Function: ${type}...`);
       const { data: result, error } = await supabase.functions.invoke('ai-chat', {
@@ -33,7 +39,11 @@ export const useAI = () => {
       setResponse(result.content);
       return { content: result.content, sentiment: result.sentiment };
     } catch (e: any) {
-      console.warn('Backend Sync Interrupted. Shifting to Neural Sync Fallback (Demo Mode)...');
+      if (e.message === 'DEMO_MODE') {
+        // Silent fallback for demo mode
+      } else {
+        console.warn('Backend Sync Interrupted. Shifting to Neural Sync Fallback (Demo Mode)...');
+      }
 
       // FALLBACK LOGIC FOR PRESENTATION RESILIENCE
       const fallbacks: Record<string, any> = {

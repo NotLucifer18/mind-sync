@@ -78,6 +78,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Fetch Data on Load
   useEffect(() => {
+    // DEMO MODE: If we have a role via bypass but no session
+    if (!session?.user && role) {
+      setMoodHistory(initialMoodHistory);
+      setJournalEntries([
+        { id: '1', text: 'I felt really good today after my walk.', date: new Date().toLocaleDateString(), isVoice: false, sentiment: 0.8 },
+        { id: '2', text: 'A bit anxious about the upcoming test.', date: new Date(Date.now() - 86400000).toLocaleDateString(), isVoice: true, sentiment: 0.4 }
+      ]);
+      if (role === 'doctor') {
+        setPatients([
+          { id: 'p1', name: 'Alex Doe', status: 'approved' },
+          { id: 'p2', name: 'Sam Smith', status: 'pending' }
+        ]);
+      }
+      return;
+    }
+
     if (!session?.user) return;
 
     const fetchData = async () => {
@@ -156,7 +172,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     };
 
     fetchData();
-  }, [session]);
+  }, [session, role]); // Added role to dependency
 
   const setCurrentMood = useCallback(async (mood: number) => {
     setCurrentMoodState(mood);
@@ -173,7 +189,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setStressAdvice('Status: High Stress. Advice: Do not argue. Offer a snack. Stay nearby quietly. 🤍');
     }
 
-    if (!session?.user) return;
+    if (!session?.user) {
+      // DEMO MODE
+      toast.success('Mood logged (Demo Mode)!');
+      return;
+    }
 
     try {
       const { error } = await (supabase as any).from('mood_logs').insert({
@@ -208,7 +228,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setStressAdvice('Status: High Stress. Advice: Do not argue. Offer a snack. Stay nearby quietly. 🤍');
     }
 
-    if (!session?.user) return;
+    if (!session?.user) {
+      // DEMO MODE
+      toast.success('Journal saved (Demo Mode)!');
+      return;
+    }
 
     try {
       const { error } = await (supabase as any).from('journal_entries').insert({

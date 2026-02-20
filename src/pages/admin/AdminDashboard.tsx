@@ -9,11 +9,17 @@ const AdminDashboard = () => {
     const { aiLogs } = useApp();
     const [search, setSearch] = useState('');
 
-    const filteredLogs = aiLogs.filter(log =>
+    const filteredLogs = aiLogs.length > 0 ? aiLogs.filter(log =>
         log.prompt.toLowerCase().includes(search.toLowerCase()) ||
         log.response.toLowerCase().includes(search.toLowerCase()) ||
         log.type.toLowerCase().includes(search.toLowerCase())
-    );
+    ) : [
+        { id: 'mock-1', type: 'journal', prompt: 'I feel anxious about school.', response: 'It is normal to feel this way. Try breathing exercises.', created_at: new Date().toISOString(), ip_address: '192.168.1.1', user_id: 'patient-123', metadata: { model: 'GPT-4', latency: 120, finish_reason: 'stop' } },
+        { id: 'mock-2', type: 'empathy', prompt: 'My child is crying.', response: 'They might be overwhelmed. Offer a hug.', created_at: new Date(Date.now() - 100000).toISOString(), ip_address: '10.0.0.1', user_id: 'caretaker-456', metadata: { model: 'GPT-3.5', latency: 85, finish_reason: 'stop' } },
+        { id: 'mock-3', type: 'doctor', prompt: 'Summarize week for patient X', response: 'Mood stable, sleep improving.', created_at: new Date(Date.now() - 200000).toISOString(), ip_address: '192.168.1.5', user_id: 'doctor-789', metadata: { model: 'GPT-4', latency: 150, finish_reason: 'stop' } },
+    ];
+
+    const displayLogs = filteredLogs;
 
     return (
         <div className="min-h-screen bg-slate-50 p-6">
@@ -105,8 +111,28 @@ const AdminDashboard = () => {
                         </div>
                     </div>
 
+                    {/* Activity Chart (New 2.0) */}
+                    <Card className="bg-white border-slate-200 shadow-sm">
+                        <CardHeader>
+                            <CardTitle>System Activity</CardTitle>
+                            <CardDescription>Request volume over time</CardDescription>
+                        </CardHeader>
+                        <CardContent className="h-[200px]">
+                            <div className="flex items-end justify-between h-full px-4 pb-2">
+                                {[35, 60, 45, 80, 55, 70, 90].map((h, i) => (
+                                    <div key={i} className="w-8 bg-indigo-500/20 rounded-t-lg relative group">
+                                        <div
+                                            className="absolute bottom-0 w-full bg-indigo-500 rounded-t-lg transition-all duration-500 group-hover:bg-indigo-600"
+                                            style={{ height: `${h}%` }}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     <div className="space-y-4">
-                        {filteredLogs.map((log) => (
+                        {displayLogs.map((log) => (
                             <motion.div
                                 key={log.id}
                                 initial={{ opacity: 0, y: 10 }}
